@@ -1,182 +1,173 @@
-# Private List Check (ZAMA FHEVM)
+# Private Insurance Eligibility (Zama FHEVM)
 
-Privacy-preserving whitelist/blacklist membership check on Ethereum (Sepolia) using **Fully Homomorphic Encryption (FHE)** on Zama’s FHEVM.
+**Privacy‑preserving insurance pre‑check** on Ethereum Sepolia using Zama’s FHEVM. Applicants submit encrypted attributes (age, prior claims, credit score). The smart contract evaluates eligibility **under encryption** and returns an encrypted boolean that only the applicant (or everyone, if made public) can decrypt via the Relayer SDK.
 
-> **Goal:** let a user prove whether an address is **IN** or **OUT** of a confidential set **without revealing the address or the set**. Only an encrypted boolean is written on-chain; the UI publicly decrypts that boolean later. No raw addresses are ever logged to the console or sent to the chain.
-
----
-
-## ✨ Features
-
-* **Private membership check** for an input address (encrypted `eaddress`).
-* **Encrypted set** of members stored on-chain; comparison uses `FHE.eq` **only**.
-* **Public result**: contract marks the result `makePubliclyDecryptable`, so anyone can call `publicDecrypt(...)`.
-* **Admin helpers** to add addresses to **whitelist** or **blacklist** (the UI encrypts the raw address locally before calling the contract).
-* **No address leakage**: UI logs only handles, proofs, tx hashes, and decrypted booleans.
-* **Pure static frontend** (no bundler needed) powered by **Zama Relayer SDK**.
+> Network: **Sepolia**
+> Contract (deployed): **`0x54863E5132ceADb20158034C60E2366AAA179a98`**
+> Frontend uses **Relayer SDK 0.2.0** and **ethers v6** (ESM).
 
 ---
 
-## 🔧 Tech Stack
+## Features
 
-* **Solidity** (Zama FHEVM):
-
-  * `import { FHE, ebool, eaddress, externalEaddress } from "@fhevm/solidity/lib/FHE.sol"`
-  * Access control with `FHE.allow/allowThis` and **public decrypt** via `FHE.makePubliclyDecryptable`.
-* **Frontend**: Vanilla HTML/JS + **Zama Relayer SDK** (official)
-
-  * `createInstance`, `createEncryptedInput`, `publicDecrypt`.
-  * Ethers v6 for wallet & contract calls.
-
-> Documentation: Zama Relayer SDK — [https://docs.zama.ai/protocol/relayer-sdk-guides/](https://docs.zama.ai/protocol/relayer-sdk-guides/)
+* 🔐 **Encrypted inputs**: age (uint8), prior claims (uint8), credit score (uint16)
+* ⚖️ **Encrypted rules**: owner sets thresholds either privately (encrypted) or via dev helper (plain)
+* ✅ **Encrypted decision**: contract computes *eligible / not eligible* as an **`ebool`**
+* 🧾 **Handles everywhere**: the dapp surfaces bytes32 handles for audit/decrypt
+* 🖥️ **Relayer flows**: supports **publicDecrypt** (when marked public) and **userDecrypt** with **EIP‑712**
 
 ---
 
-## 🏗️ How it works
-
-1. The UI takes an input **address** and encrypts it in the browser via the Relayer SDK, producing a **ciphertext handle** + **proof**.
-2. The contract iterates through its encrypted set (whitelist or blacklist) and uses **`FHE.eq`** to compare with the input `eaddress`.
-3. The contract emits an event with a **result handle** (encrypted boolean) and flags it as **publicly decryptable**.
-4. The UI invokes **`publicDecrypt`** on that handle to display **IN** or **OUT**.
-
-**Security notes**
-
-* Only the encrypted boolean is ever published. Raw addresses and the set members remain encrypted.
-* Console logging is trimmed to exclude raw addresses.
-
----
-
-## 🧱 Contract
-
-* **Network**: Sepolia (chainId `11155111`)
-* **Address**: `0x8Ac1d3E49A73F8328e43719dCF6fBfeF4405937B`
-* **KMS (Sepolia)**: `0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC`
-* **Key methods (public result)**:
-
-  * `checkWhitelistPublic(bytes32 addrExt, bytes proof) → bytes32`
-  * `checkBlacklistPublic(bytes32 addrExt, bytes proof) → bytes32`
-  * `getLastResultHandle() → bytes32`
-* **Admin methods (UI encrypts the input address before calling):**
-
-  * `addToWhitelist(bytes32 addrExt, bytes proof)`
-  * `addToBlacklist(bytes32 addrExt, bytes proof)`
-* **Event:** `MembershipChecked(address user, bool isWhitelist, uint256 scannedCount, bytes32 resultHandle)`
-
-> Implementation follows Zama guidance: only `FHE.eq` over `eaddress`, **no** arithmetic on `eaddress`.
-
----
-
-## 📁 Repository Layout
+## Architecture
 
 ```
-frontend/
-  public/
-    index.html        # Standalone UI (no build step)
-contracts/
-  PrivateListCheck.sol
-scripts/              # optional
-hardhat.config.ts     # if you use Hardhat for local tasks
+Frontend (ESM, ethers v6, Relayer SDK 0.2.0)
+   ├─ createEncryptedInput(contract, user)
+   │    ├─ add8(age), add8(claims), add16(score)
+   │    └─ encrypt() -> { handles, inputProof }
+   └─ call checkEligibility(handle, proof)
+
+FHEVM Smart Contract (Zama FHE.sol)
+   ├─ fromExternal(ext, proof)
+   ├─ compare under encryption (FHE.lt / ge / and / etc.)
+   └─ allow + (optional) makePubliclyDecryptable(result)
+
+Relayer
+   ├─ publicDecrypt(handles)
+   └─ userDecrypt(pairs, kp, EIP‑712 signature)
 ```
 
 ---
 
-## 🚀 Quick Start (Frontend)
+## Smart Contract API
 
-**Prerequisites:** MetaMask, Node.js (optional for serving static files).
+> Solidity uses the official Zama lib: `import { FHE, euint8, euint16, ebool, externalEuint8, externalEuint16 } from "@fhevm/solidity/lib/FHE.sol"` and `SepoliaConfig`.
 
-### Option A — open as a static file
+### Read‑only
 
-* Open `frontend/public/index.html` directly in a modern browser.
-* If your browser blocks crypto features from file://, use Option B below.
+* `function version() external pure returns (string)` – build marker.
+* `function owner() external view returns (address)` – contract owner.
+* `function getRuleHandles() external view returns (bytes32 minAgeH, bytes32 maxClaimsH, bytes32 minScoreH)` – encrypted thresholds (if set).
 
-### Option B — serve locally
+### Owner actions
+
+* `function setRulesEncrypted(bytes32 minAgeExt, bytes32 maxClaimsExt, bytes32 minScoreExt, bytes proof) external`
+  Accepts **external** encrypted values + attestation proof from the Relayer SDK.
+* `function setRulesPlain(uint8 minAge, uint8 maxClaims, uint16 minScore) external`
+  Dev helper for quick testing.
+* `function makeRulesPublic() external`
+  Marks threshold ciphertexts as publicly decryptable.
+
+### Applicant flow
+
+* `function checkEligibility(bytes32 ageExt, bytes32 claimsExt, bytes32 scoreExt, bytes proof) external returns (ebool ok)`
+  Emits `EligibilityChecked(address indexed user, bytes32 resultHandle)`.
+
+> **Note**: `FHE.allow(ok, msg.sender)` lets the caller decrypt privately via `userDecrypt`. If the owner also calls `makeRulesPublic()`, auditors can `publicDecrypt` rule handles.
+
+---
+
+## Frontend Overview
+
+The app is a single‑file HTML (placed at **`frontend/public/index.html`**) with a clean, original design. It:
+
+* connects MetaMask → ensures Sepolia;
+* initializes Relayer SDK 0.2.0 (`initSDK` + `createInstance({...SepoliaConfig, relayerUrl, network})`);
+* encrypts inputs with `add8/add8/add16` and submits to the contract;
+* parses `EligibilityChecked` to obtain `resultHandle`;
+* decrypts the result with **userDecrypt (EIP‑712)** and shows ✅/❌.
+
+Console logging is verbose and namespaced (e.g., `[APP]`, `[FHE]`) for debugging.
+
+---
+
+## Prerequisites
+
+* **Node.js 18+** (or any recent LTS)
+* **MetaMask** in your browser
+* Access to **Sepolia** test network (wallet funded with test ETH)
+
+---
+
+## Local Setup
 
 ```bash
-# from repo root
-npx serve frontend/public -p 5173    # or any static server
-# then open http://localhost:5173
+# clone your repo
+git clone <your-repo-url>
+cd <your-repo>/frontend
+
+# serve the static index.html (choose any)
+# 1) simple python
+python3 -m http.server 8080 -d public
+# 2) or use a lightweight static server
+npx serve public -l 8080
 ```
 
-Alternatives:
+Open [http://localhost:8080](http://localhost:8080) in your browser.
 
-```bash
-# python
-python3 -m http.server --directory frontend/public 5173
-# or
-npx http-server frontend/public -p 5173 --cors
-```
-
-### Using the dApp
-
-1. Click **Connect MetaMask** (network auto-switches to **Sepolia** if needed).
-2. Choose **Whitelist** or **Blacklist** and paste an address to check (0x…).
-3. Press **Check** → the app encrypts & sends, then shows **IN** or **OUT**.
-4. You can later press **Decrypt Last Result** to re-decrypt the last emitted handle.
-
-### Admin (optional)
-
-* As the contract owner, paste an address into the **Admin** panel and use:
-
-  * **Add to Whitelist** or **Add to Blacklist** — the UI encrypts the address, then calls the contract.
+> The frontend is self‑contained (no build step required). If you prefer a dev server with hot reload, wrap the file into your favorite toolchain.
 
 ---
 
-## 🧩 Installation (full project)
+## Environment
 
-```bash
-# 1) Clone
-git clone https://github.com/<your-org>/<your-repo>.git
-cd <your-repo>
+The frontend embeds sensible defaults:
 
-# 2) (optional) Install deps if you plan to compile/deploy contracts
-npm i
-
-# 3) Frontend — run a static server
-npx serve frontend/public -p 5173
-```
-
-**Download as ZIP:**
-If this repo is on GitHub, you can download directly:
-
-```
-https://github.com/<your-org>/<your-repo>/archive/refs/heads/main.zip
-```
-
-> Replace `<your-org>/<your-repo>` with your namespace.
-
----
-
-## 🔗 Relayer/Gateway (Testnet)
-
+* **Contract**: `0x54863E5132ceADb20158034C60E2366AAA179a98`
+* **Network**: Sepolia (`chainId 11155111`)
 * **Relayer URL**: `https://relayer.testnet.zama.cloud`
-* **Chain**: Sepolia `11155111`
-* **KMS**: `0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC`
+
+If you need to switch addresses/URLs, adjust the small `CONFIG` object at the top of the HTML.
 
 ---
 
-## 🧪 Console Logging
+## Run the Frontend
 
-The console prints only:
+1. Open the app and **Connect** MetaMask.
+2. If prompted, approve network switch to **Sepolia**.
+3. (Admin) Set rules:
 
-* encryption **handle** and **proof** length (never raw addresses),
-* transaction hash and receipt summary,
-* the decrypted boolean value.
-
-To disable logging entirely, search for the small `clog` helper in `index.html` and no-op the calls.
-
----
-
-## ❗ Troubleshooting
-
-* **“Handle … is not allowed for public decryption”**
-  You likely called a non-public method. Use `checkWhitelistPublic` / `checkBlacklistPublic` from the UI.
-* **Invalid address**
-  The UI requires EIP-55 compatible `0x` address (40 hex chars). It validates before sending.
-* **Wrong network**
-  MetaMask must be on **Sepolia**. The app will try to switch automatically.
+   * **Set Rules (encrypted)**: encrypt thresholds in the browser and submit.
+   * **Set Rules (dev)**: plain thresholds for testing.
+   * Optionally **Make Public** to allow `publicDecrypt` on rule handles.
+4. (Applicant) Enter your **Age**, **Claims**, **Credit Score** → **Check Eligibility**.
+5. The dapp displays tx hash, the emitted `resultHandle`, and the decrypted decision.
 
 ---
 
-## ✅ License
+## Troubleshooting
 
-MIT — feel free to use and adapt.
+* **`missing revert data` / call exception**
+
+  * Wrong **contract address** or **ABI**; wrong **network**; or the **proof/handle** tuple does not match the contract’s verifying addresses.
+  * Ensure you’re on **Sepolia**, the contract is correct, and you pass the exact `{handle, proof}` pair returned by `encrypt()`.
+* **Relayer errors**
+
+  * Confirm **Relayer SDK 0.2.0**. Ensure `createInstance({...SepoliaConfig, relayerUrl, network: window.ethereum})` is used.
+  * For **userDecrypt**, make sure you generate a keypair and sign the **EIP‑712** message provided by `createEIP712`.
+* **No `EligibilityChecked` found**
+
+  * Check the event topic name and that you filtered logs by your contract address.
+
+---
+
+## Security Notes
+
+* Keep plaintext inputs **off‑chain**; always use the Relayer to build encrypted inputs.
+* Avoid exposing private keys. The EIP‑712 flow signs a typed message; it does **not** leak keys.
+* Consider making only the final decision public, while keeping thresholds private in production.
+
+---
+
+## Tech Stack
+
+* **Solidity** with Zama **FHEVM** (`@fhevm/solidity`) and **SepoliaConfig**
+* **Relayer SDK** `0.2.0`
+* **ethers v6 (ESM)**
+* Single‑page static frontend (no framework required)
+
+---
+
+## License
+
+MIT — see `LICENSE`.

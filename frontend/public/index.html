@@ -3,257 +3,404 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Encrypted Insurance Eligibility · Zama FHEVM</title>
+
+    <!-- Required for Relayer WASM workers -->
     <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
     <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp" />
-    <title>Private List Check · ZAMA FHEVM (v2)</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Fonts (distinct look) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
     <style>
-      :root{
-        --bg: #faf7f2;           /* light sand */
-        --ink:#10121a;           /* near-black text */
-        --muted:#6b7280;         /* slate */
-        --card:#ffffff;          /* white cards */
-        --stroke:#e7e2da;        /* warm border */
-        --shadow: 0 10px 30px rgba(17,18,26,.08);
-        --radius:16px;
-        --brand:#7c3aed;         /* violet */
-        --accent:#f59e0b;        /* amber */
-        --ok:#10b981;            /* green */
-        --bad:#ef4444;           /* red */
+      :root {
+        --bg: #f7fbff;
+        --ink: #0f172a;
+        --muted: #5b6b7b;
+        --panel: #ffffff;
+        --line: #e8eef6;
+        --primary: #2563eb; /* indigo-blue */
+        --accent: #12b886;  /* mint */
+        --danger: #ef4444;  /* red */
+        --amber: #f59e0b;
+        --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif;
+        --radius: 18px;
+        --shadow: 0 12px 40px rgba(31, 41, 55, 0.08);
       }
-      *{box-sizing:border-box}
-      html,body{height:100%}
-      body{
-        font-family:'DM Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        color:var(--ink);
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
         background:
-          radial-gradient(900px 500px at 0% 0%, #eae2ff40, transparent 60%),
-          radial-gradient(800px 600px at 100% 0%, #ffecc240, transparent 60%),
-          var(--bg);
-        margin:0;
+          radial-gradient(800px 800px at -10% -10%, rgba(37,99,235,.08), transparent 60%),
+          radial-gradient(700px 700px at 110% 10%, rgba(18,184,134,.08), transparent 60%),
+          linear-gradient(180deg, #f9fbff, #f6faff 60%, #f5f9ff);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.5;
       }
-      .container{max-width:1200px;margin:0 auto;padding:28px 16px 56px}
-      header{
-        display:grid;grid-template-columns:1fr auto;align-items:center;gap:20px;margin-bottom:22px;
+      header.nav {
+        position: sticky; top: 0; z-index: 30;
+        display:flex; align-items:center; justify-content:space-between;
+        padding: 16px clamp(16px, 4vw, 36px);
+        background: rgba(255,255,255,.75);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
       }
-      .brand{display:flex;align-items:center;gap:14px}
-      .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--brand),#a78bfa);box-shadow:var(--shadow)}
-      h1{font-size:clamp(22px,3.2vw,30px);margin:0;font-weight:800}
-      .sub{font-size:13px;color:var(--muted)}
-      .top-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-      .pill{font-size:12px;color:var(--muted);border:1px solid var(--stroke);padding:8px 10px;border-radius:999px;background:#fff7}
-      .btn{appearance:none;border:1px solid var(--stroke);background:linear-gradient(180deg,#fff,#f8f7f5);padding:12px 16px;border-radius:12px;cursor:pointer;font-weight:800;letter-spacing:.2px;box-shadow:var(--shadow);}
-      .btn:disabled{opacity:.5;cursor:not-allowed}
-      .btn.primary{background:linear-gradient(135deg,#a78bfa,#7c3aed);color:white;border:0}
-      .btn.accent{background:linear-gradient(135deg,#ffd166,#f59e0b);color:#251a00;border:0}
-      .btn.ok{background:linear-gradient(135deg,#34d399,#10b981);color:white;border:0}
-      .btn.bad{background:linear-gradient(135deg,#f87171,#ef4444);color:white;border:0}
+      .brand { display:flex; align-items:center; gap:12px; }
+      .logo {
+        width: 40px; height: 40px; border-radius: 12px;
+        background: conic-gradient(from 210deg, #c7d2fe, #99f6e4, #c7d2fe);
+        display:grid; place-items:center; font-weight: 800; color:#0f172a;
+        box-shadow: inset 0 0 0 1px rgba(15,23,42,.06);
+      }
+      .brand h1 { margin:0; font-size: 18px; letter-spacing:.2px; font-weight:800; }
+      .brand small { display:block; color: var(--muted); font-weight:600; }
 
-      /* GRID: radically new layout */
-      .grid{display:grid;grid-template-columns: 1.2fr .8fr; gap:18px}
-      .row{display:grid;grid-template-columns:1fr 1fr; gap:18px}
-      @media (max-width: 980px){ .grid{grid-template-columns:1fr} .row{grid-template-columns:1fr} }
+      .connect { display:flex; gap:10px; align-items:center; padding:10px 14px; border-radius: 999px; border: 1px solid var(--line); background:#fff; box-shadow: var(--shadow); cursor:pointer; font-weight:800; }
+      .connect:hover { transform: translateY(-1px); }
 
-      .card{background:var(--card); border:1px solid var(--stroke); border-radius:var(--radius); padding:18px 18px 16px; box-shadow:var(--shadow)}
-      .card h2{font-size:16px;margin:0 0 12px 0;font-weight:800;display:flex;align-items:center;gap:10px}
-      .kbd{border:1px solid var(--stroke);background:#fbfaf9;padding:2px 6px;border-radius:6px;font-size:12px;color:var(--muted)}
+      main { max-width: 1100px; margin: 24px auto 60px; padding: 0 18px; }
 
-      .field{margin-bottom:12px}
-      .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-      .input, select{width:100%;padding:12px 12px;border:1px solid var(--stroke);border-radius:12px;outline:none;background:white;font-size:15px}
-      .input:focus, select:focus{border-color:#c4b5fd; box-shadow:0 0 0 3px #c4b5fd40}
-      .row-actions{display:flex;gap:10px;flex-wrap:wrap}
+      .hero { display:grid; grid-template-columns: 1.1fr .9fr; gap:24px; align-items:center; }
+      @media (max-width: 980px){ .hero{ grid-template-columns: 1fr; } }
+      .title { font-size: clamp(26px, 2.4vw, 34px); font-weight: 800; letter-spacing: -.01em; margin:0; }
+      .lead  { color: var(--muted); margin-top: 2px; }
 
-      .status{margin-top:10px;padding:12px;border-radius:12px;border:1px dashed var(--stroke);background:#fff7;color:var(--muted);font-weight:700}
-      .result{display:none;margin-top:10px;padding:14px;border-radius:12px;border:1px solid var(--stroke);text-align:center;font-weight:900}
-      .result.ok{color:var(--ok);border-color:#34d39980;background:#ecfdf5}
-      .result.bad{color:var(--bad);border-color:#f8717180;background:#fef2f2}
+      .pill { display:inline-flex; gap:8px; align-items:center; border-radius: 999px; padding: 6px 10px; border:1px dashed var(--line); color:var(--muted); background:#fff; font-size:12px; }
 
-      footer{margin-top:22px;color:var(--muted);font-size:12px;text-align:center}
-      .loading{position:relative}
-      .loading::after{content:"";position:absolute;right:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;border:2px solid #00000022;border-top-color:#00000066;animation:spin 1s linear infinite}
-      @keyframes spin{to{transform:translateY(-50%) rotate(1turn)}}
-      code{background:#fbfaf9;border:1px solid var(--stroke);padding:2px 6px;border-radius:6px}
+      .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+      @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+
+      .card { background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px clamp(16px, 2.6vw, 22px); }
+      .card h2 { margin:0 0 8px; font-size: 18px; letter-spacing: .2px; }
+      .note { font-size: 12px; color: var(--muted); background: #f7fafc; padding: 10px 12px; border:1px dashed var(--line); border-radius: 12px; }
+
+      .row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+      .field { flex: 1; min-width: 180px; }
+      label { display:block; font-size:12px; color: var(--muted); margin: 6px 0; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+      input, button { font-family: var(--sans); }
+      input[type="number"], input[type="text"] {
+        width: 100%; padding: 12px 12px; border-radius: 14px; border:1px solid var(--line); background:#fff;
+        font-weight: 700; color:#0f172a; outline: none; transition: .2s ease;
+      }
+      input:focus { border-color:#c7d2fe; box-shadow: 0 0 0 4px rgba(199,210,254,.25); }
+
+      .btn { appearance:none; border:0; border-radius: 14px; padding: 12px 14px; font-weight: 800; cursor:pointer; transition: .15s ease; }
+      .btn:disabled { opacity: .55; cursor:not-allowed; }
+      .btn-primary { background: linear-gradient(180deg, #2563eb, #1e40af); color:#fff; }
+      .btn-ghost { background:#fff; border:1px solid var(--line); }
+      .btn-mint { background: linear-gradient(180deg, #12b886, #0f9d74); color:#fff; }
+      .btn-amber{ background: linear-gradient(180deg, #f59e0b, #b45309); color:#fff; }
+
+      .status { margin-top: 10px; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+      .handles { font-family: var(--mono); font-size: 12px; color:#0f172a; background:#f8fafc; border:1px dashed var(--line); border-radius: 12px; padding: 10px; word-break: break-all; }
+      .resultBox { min-height: 52px; display:grid; place-items:center; border:1px dashed var(--line); border-radius: 14px; color:var(--muted); }
+
+      .ok { color:#059669; }
+      .err { color:#b91c1c; }
+
+      /* subtle motion */
+      .card { will-change: transform; }
+      .card:hover { transform: translateY(-2px); }
     </style>
   </head>
   <body>
-    <div class="container">
-      <header>
-        <div class="brand">
-          <div class="logo"></div>
-          <div>
-            <h1>Private List Check</h1>
-            <div class="sub">ZAMA · FHEVM · Sepolia</div>
-          </div>
+    <header class="nav">
+      <div class="brand">
+        <div class="logo">FHE</div>
+        <div>
+          <h1>Encrypted Insurance Eligibility</h1>
+          <small>Fully Homomorphic • Sepolia</small>
         </div>
-        <div class="top-actions">
-          <span class="pill">Network: <b id="netInfo">—</b></span>
-          <span class="pill">Account: <b id="acctInfo">—</b></span>
-          <button id="btnConnect" class="btn primary">Connect MetaMask</button>
-        </div>
-      </header>
+      </div>
+      <button id="btnConnect" class="connect"><span>Connect</span></button>
+    </header>
 
-      <!-- NEW LAYOUT: main left column is the Private Check, right column stacks Contract + Admin -->
+    <main>
+      <section class="hero">
+        <div>
+          <h2 class="title">Private underwriting, public trust</h2>
+          <p class="lead">Submit encrypted age/claims/score; the contract returns an encrypted eligibility verdict. Rules are stored encrypted by the owner.</p>
+          <div class="pill" id="netBadge">Network: —</div>
+        </div>
+        <div class="card" style="align-self:flex-start">
+          <h2>Contract</h2>
+          <div class="note">Address (Sepolia): <b id="addr"></b></div>
+          <div class="status" id="status">Waiting for wallet…</div>
+        </div>
+      </section>
+
       <section class="grid">
-        <!-- LEFT: Private Check (wide) -->
-        <div class="card">
-          <h2>Private Check <span class="kbd">encrypted</span></h2>
+        <!-- Applicant side -->
+        <article class="card">
+          <h2>Apply (Encrypted)</h2>
+          <p class="note">Fill in your attributes. Values are encrypted locally via Relayer SDK 0.2.0.</p>
           <div class="row">
             <div class="field">
-              <label>Address to check</label>
-              <input id="addr" class="input" placeholder="0x1234…" />
+              <label>Age (years)</label>
+              <input id="age" type="number" min="0" max="255" placeholder="e.g. 32" />
             </div>
             <div class="field">
-              <label>Mode</label>
-              <select id="mode">
-                <option value="whitelist">Whitelist</option>
-                <option value="blacklist">Blacklist</option>
-              </select>
+              <label>Past claims</label>
+              <input id="claims" type="number" min="0" max="255" placeholder="e.g. 1" />
             </div>
-          </div>
-          <div class="row-actions" style="margin:6px 0 2px">
-            <button id="btnCheck" class="btn accent" disabled>Check</button>
-            <button id="btnLast" class="btn" disabled>Decrypt Last Result</button>
-          </div>
-          <div id="status" class="status">Waiting for connection…</div>
-          <div id="result" class="result">—</div>
-        </div>
-
-        <!-- RIGHT: Contract info + Admin stacked -->
-        <div class="row">
-          <div class="card">
-            <h2>Contract</h2>
-            <div class="field"><label>Address</label><div class="pill" style="display:inline-block;user-select:all">0x8Ac1d3E49A73F8328e43719dCF6fBfeF4405937B</div></div>
-            <div class="field"><label>Mode</label><div class="pill">KMS (Sepolia)</div></div>
-            <div class="field"><label>KMS</label><div class="pill" style="display:inline-block;user-select:all">0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC</div></div>
-          </div>
-          <div class="card">
-            <h2>Admin (optional)</h2>
             <div class="field">
-              <label>Address to add (UI encrypts it)</label>
-              <input id="adminHandle" class="input" placeholder="0xabc…" />
+              <label>Risk score (0..65535)</label>
+              <input id="score" type="number" min="0" max="65535" placeholder="e.g. 540" />
             </div>
-            <div class="row-actions">
-              <button id="btnAddW" class="btn ok" disabled>Add to Whitelist</button>
-              <button id="btnAddB" class="btn bad" disabled>Add to Blacklist</button>
-            </div>
-            <div style="margin-top:8px;color:var(--muted);font-size:12px">Owner-only actions. The raw address never leaves the browser.</div>
           </div>
-        </div>
+          <div class="row" style="margin-top:10px">
+            <button id="btnApply" class="btn btn-mint">Submit Private Check</button>
+            <div class="pill" id="applyTx">—</div>
+          </div>
+          <div class="status" id="applyLog"></div>
+          <div class="resultBox" id="verdictBox">Verdict will appear here…</div>
+        </article>
+
+        <!-- Admin side -->
+        <article class="card">
+          <h2>Admin Rules</h2>
+          <p class="note">Owner uploads encrypted underwriting rules. Use plain setters only for development.</p>
+          <div class="row">
+            <div class="field">
+              <label>Min age</label>
+              <input id="minAge" type="number" min="0" max="255" placeholder="e.g. 21" />
+            </div>
+            <div class="field">
+              <label>Max claims</label>
+              <input id="maxClaims" type="number" min="0" max="255" placeholder="e.g. 2" />
+            </div>
+            <div class="field">
+              <label>Min score</label>
+              <input id="minScore" type="number" min="0" max="65535" placeholder="e.g. 500" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="btnSetRulesEnc" class="btn btn-primary">Set Encrypted Rules</button>
+            <button id="btnSetRulesPlain" class="btn btn-ghost">Set Plain Rules (dev)</button>
+            <button id="btnMakePublic" class="btn btn-amber">Make Rules Public</button>
+          </div>
+          <div class="status" id="adminLog"></div>
+          <div class="handles" id="ruleHandles">—</div>
+        </article>
       </section>
+    </main>
 
-      <section class="card" style="margin-top:18px">
-        <h2>How it works</h2>
-        <ol style="margin:0;padding-left:18px;color:var(--muted);line-height:1.6">
-          <li>Address is encrypted locally via ZAMA Relayer SDK.</li>
-          <li>Contract iterates over encrypted set and compares using <code>FHE.eq</code>.</li>
-          <li>Only encrypted boolean is published; UI requests <code>publicDecrypt</code>.</li>
-        </ol>
-      </section>
-
-      <footer>
-        UI language: English · This page logs handles/proofs/tx hashes only (no raw addresses).
-      </footer>
-    </div>
-
-    <!-- Zama Relayer SDK (official) -->
-    <script type="module" crossorigin src="https://cdn.zama.ai/relayer-sdk-js/0.1.2/relayer-sdk-js.js"></script>
-    <!-- ethers v6 -->
+    <!-- SDKs (ESM) -->
+    <script type="module" crossorigin src="https://cdn.zama.ai/relayer-sdk-js/0.2.0/relayer-sdk-js.js"></script>
     <script type="module" crossorigin src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/+esm"></script>
 
     <script type="module">
-      import { BrowserProvider, Contract, getAddress } from "https://cdn.jsdelivr.net/npm/ethers@6.15.0/+esm";
-      import { initSDK, createInstance, SepoliaConfig } from "https://cdn.zama.ai/relayer-sdk-js/0.1.2/relayer-sdk-js.js";
-
-      // ===== Console helpers (simple) =====
-      const clog = {
-        banner(){ console.log('Private List Check ready'); },
-        group:t=>console.log(`--- ${t} ---`),
-        end:()=>{}, table:o=>console.log(o), kv:(k,v)=>console.log(`${k}:`, v)
-      }; clog.banner();
-
-      // ===== DOM =====
-      const $ = (id)=>document.getElementById(id);
-      const btnConnect = $("btnConnect");
-      const btnCheck   = $("btnCheck");
-      const btnLast    = $("btnLast");
-      const btnAddW    = $("btnAddW");
-      const btnAddB    = $("btnAddB");
-      const addrInput  = $("addr");
-      const adminHandle= $("adminHandle");
-      const statusEl   = $("status");
-      const resultEl   = $("result");
-      const netInfo    = $("netInfo");
-      const acctInfo   = $("acctInfo");
-      const modeSel    = $("mode");
+      import { BrowserProvider, Contract } from "https://cdn.jsdelivr.net/npm/ethers@6.15.0/+esm";
+      import { initSDK, createInstance, SepoliaConfig, generateKeypair } from "https://cdn.zama.ai/relayer-sdk-js/0.2.0/relayer-sdk-js.js";
 
       // ===== Config =====
-      const CONTRACT_ADDRESS = getAddress("0x8Ac1d3E49A73F8328e43719dCF6fBfeF4405937B");
+      const CONTRACT_ADDRESS = "0x54863E5132ceADb20158034C60E2366AAA179a98"; // deployed address (Sepolia)
       const RELAYER_URL = "https://relayer.testnet.zama.cloud";
-      const KMS_ADDRESS = getAddress("0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC");
-      const CHAIN_HEX = "0xaa36a7"; // Sepolia
-      const CHAIN_ID  = 11155111n;
+      const CHAIN_ID_HEX = "0xaa36a7"; // sepolia
 
-      // ===== ABI =====
       const abi = [
-        { inputs:[{name:"addrExt",type:"bytes32"},{name:"proof",type:"bytes"}], name:"checkWhitelistPublic", outputs:[{name:"",type:"bytes32"}], stateMutability:"nonpayable", type:"function" },
-        { inputs:[{name:"addrExt",type:"bytes32"},{name:"proof",type:"bytes"}], name:"checkBlacklistPublic", outputs:[{name:"",type:"bytes32"}], stateMutability:"nonpayable", type:"function" },
-        { inputs:[{name:"addrExt",type:"bytes32"},{name:"proof",type:"bytes"}], name:"addToWhitelist", outputs:[], stateMutability:"nonpayable", type:"function" },
-        { inputs:[{name:"addrExt",type:"bytes32"},{name:"proof",type:"bytes"}], name:"addToBlacklist", outputs:[], stateMutability:"nonpayable", type:"function" },
-        { inputs:[], name:"getLastResultHandle", outputs:[{name:"",type:"bytes32"}], stateMutability:"view", type:"function" },
-        { anonymous:false, inputs:[
-            {indexed:true,name:"user",type:"address"},
-            {indexed:false,name:"isWhitelist",type:"bool"},
-            {indexed:false,name:"scannedCount",type:"uint256"},
-            {indexed:false,name:"resultHandle",type:"bytes32"}
-          ], name:"MembershipChecked", type:"event" }
+        { inputs: [], name: "version", outputs: [{ type: "string" }], stateMutability: "pure", type: "function" },
+        { inputs: [], name: "owner", outputs: [{ type: "address" }], stateMutability: "view", type: "function" },
+        { inputs: [ { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }, { type: "bytes" } ], name: "setRulesEncrypted", outputs: [], stateMutability: "nonpayable", type: "function" },
+        { inputs: [ { type: "uint8" }, { type: "uint8" }, { type: "uint16" } ], name: "setRulesPlain", outputs: [], stateMutability: "nonpayable", type: "function" },
+        { inputs: [], name: "getRuleHandles", outputs: [ { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" } ], stateMutability: "view", type: "function" },
+        { inputs: [], name: "makeRulesPublic", outputs: [], stateMutability: "nonpayable", type: "function" },
+        { inputs: [ { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }, { type: "bytes" } ], name: "checkEligibility", outputs: [ { type: "bytes1" } ], stateMutability: "nonpayable", type: "function" },
+        { anonymous:false, inputs: [ { indexed:false, name:"minAgeH",   type:"bytes32" }, { indexed:false, name:"maxClaimsH", type:"bytes32" }, { indexed:false, name:"minScoreH", type:"bytes32" } ], name:"RulesUpdated", type:"event" },
+        { anonymous:false, inputs: [ { indexed:true, name:"applicant", type:"address" }, { indexed:false, name:"resultHandle", type:"bytes32" } ], name:"ApplicationChecked", type:"event" }
       ];
 
+      // ===== Elements =====
+      const $ = (id) => document.getElementById(id);
+      const els = {
+        btnConnect: $("btnConnect"),
+        netBadge: $("netBadge"),
+        addr: $("addr"),
+        status: $("status"),
+        // Applicant
+        age: $("age"), claims: $("claims"), score: $("score"),
+        btnApply: $("btnApply"), verdictBox: $("verdictBox"), applyLog: $("applyLog"), applyTx: $("applyTx"),
+        // Admin
+        minAge: $("minAge"), maxClaims: $("maxClaims"), minScore: $("minScore"),
+        btnSetRulesEnc: $("btnSetRulesEnc"), btnSetRulesPlain: $("btnSetRulesPlain"), btnMakePublic: $("btnMakePublic"),
+        adminLog: $("adminLog"), ruleHandles: $("ruleHandles"),
+      };
+
+      els.addr.textContent = CONTRACT_ADDRESS;
+      els.netBadge.textContent = "Network: Sepolia";
+
       // ===== State =====
-      let provider, signer, user, relayer, contract; let lastHandle = null;
+      let provider, signer, user, contract, relayer;
 
-      // ===== UI helpers =====
-      const setStatus = (t)=> statusEl.textContent=t;
-      function showResult(ok){ resultEl.style.display='block'; resultEl.classList.remove('ok','bad'); resultEl.classList.add(ok?'ok':'bad'); resultEl.textContent = ok? '✅ IN LIST' : '❌ OUT OF LIST'; }
-      const setLoading = (el,on)=> el && el.classList.toggle('loading', !!on);
-      function refreshButtons(){
-        const okAddr  = /^0x[0-9a-fA-F]{40}$/.test((addrInput.value||'').trim());
-        const okAdmin = /^0x[0-9a-fA-F]{40}$/.test((adminHandle.value||'').trim());
-        if (btnCheck) btnCheck.disabled = !signer || !okAddr;
-        if (btnAddW) btnAddW.disabled = !signer || !okAdmin;
-        if (btnAddB) btnAddB.disabled = !signer || !okAdmin;
+      // Logs
+      const DLOG = {
+        info: (...x) => console.log("%c[APP]", "color:#334155", ...x),
+        ok:   (...x) => console.log("%c[APP]", "color:#059669", ...x),
+        warn: (...x) => console.log("%c[APP]", "color:#b45309", ...x),
+        err:  (...x) => console.log("%c[APP]", "color:#b91c1c", ...x),
+      };
+      const FHELOG = {
+        encStart(meta){ console.groupCollapsed('%c[FHE] encrypt','color:#2563eb', meta); },
+        encAdd(tag,val){ console.log('%c[FHE]  add','color:#2563eb', tag, val); },
+        encDone(hs, proof){ console.log('%c[FHE]  done','color:#2563eb', { handles: hs, proofBytes: proof?.length||0 }); console.groupEnd(); },
+        staticOk(){ console.log('%c[FHE] staticCall ok','color:#059669'); }
+      };
+
+      // ===== Bootstrap =====
+      els.btnConnect.addEventListener('click', connect);
+      els.btnApply.addEventListener('click', apply);
+      els.btnSetRulesEnc.addEventListener('click', setRulesEncrypted);
+      els.btnSetRulesPlain.addEventListener('click', setRulesPlain);
+      els.btnMakePublic.addEventListener('click', makeRulesPublic);
+
+      async function connect(){
+        try{
+          if(!window.ethereum) throw new Error('MetaMask not found');
+          provider = new BrowserProvider(window.ethereum);
+          await provider.send('eth_requestAccounts', []);
+          const net = await provider.getNetwork();
+          if(net.chainId !== 11155111n){ await provider.send('wallet_switchEthereumChain', [{ chainId: CHAIN_ID_HEX }]); }
+          signer = await provider.getSigner();
+          user = await signer.getAddress();
+          contract = new Contract(CONTRACT_ADDRESS, abi, signer);
+
+          await initSDK();
+          relayer = await createInstance({ ...SepoliaConfig, relayerUrl: RELAYER_URL, network: window.ethereum, debug:true });
+          DLOG.ok('Relayer ready');
+
+          els.status.textContent = `Connected: ${user.slice(0,6)}…${user.slice(-4)}`;
+          els.btnConnect.textContent = `${user.slice(0,6)}…${user.slice(-4)}`;
+
+          // Fetch current rule handles (if any)
+          try { await showRuleHandles(); } catch {}
+        } catch(e){ els.status.textContent = e.message || String(e); DLOG.err(e); }
       }
-      function validateAddress(raw){ const s=(raw||'').trim(); if(!s) throw new Error('Enter an address'); if(!/^0x[0-9a-fA-F]{40}$/.test(s)) throw new Error('Invalid address format (0x + 40 hex)'); return getAddress(s); }
-      addrInput.addEventListener('input', refreshButtons); adminHandle.addEventListener('input', refreshButtons);
 
-      // ===== Network guards =====
-      async function ensureSepolia(){ const id = await window.ethereum.request({ method:'eth_chainId' }); if (BigInt(id)!==CHAIN_ID){ await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{chainId: CHAIN_HEX}] }); } }
+      // ===== Helpers =====
+      const isU8  = (n) => Number.isInteger(n) && n >= 0 && n <= 255;
+      const isU16 = (n) => Number.isInteger(n) && n >= 0 && n <= 65535;
+      const preview = (s, n=10) => (s && String(s).length>2*n) ? `${String(s).slice(0,n)}…${String(s).slice(-n)}` : String(s);
 
-      // ===== Relayer helpers =====
-      function addAddressToBuf(buf, address){ if (typeof buf.addAddress==='function'){ buf.addAddress(address); return 'addAddress'; } if (typeof buf.add160==='function'){ buf.add160(BigInt(address)); return 'add160'; } throw new Error('Relayer SDK missing addAddress/add160'); }
-      const toHex = (u8)=> '0x'+Array.from(u8).map(b=>b.toString(16).padStart(2,'0')).join('');
-      async function encryptAddress(address){ clog.group('ENCRYPTION'); const buf = relayer.createEncryptedInput(CONTRACT_ADDRESS, user); const used = addAddressToBuf(buf, address); clog.kv('inputMethod', used); const { handles, inputProof } = await buf.encrypt(); const handle = toHex(handles[0]); const proof = toHex(inputProof); clog.table({ handle, proofBytes: inputProof.length, proofPreview: proof.slice(0,66)+'…' }); clog.end(); return { handle, proof }; }
+      async function showRuleHandles(){
+        const [a, c, s] = await contract.getRuleHandles();
+        els.ruleHandles.textContent = `minAge: ${a}\nmaxClaims: ${c}\nminScore: ${s}`;
+      }
 
-      async function callCheckPublic(mode, handle, proof){ const fn = mode==='blacklist' ? 'checkBlacklistPublic' : 'checkWhitelistPublic'; clog.group('CALL (public)'); clog.table({ fn, handle, proofLen: proof.length }); const tx = await contract[fn](handle, proof, { gasLimit: 3_000_000 }); clog.kv('txHash', tx.hash); const receipt = await tx.wait(); clog.table({ blockNumber: receipt.blockNumber, gasUsed: receipt.gasUsed.toString(), status: receipt.status }); let evtHandle=null; for (const lg of receipt.logs){ try{ const parsed=contract.interface.parseLog(lg); if(parsed && parsed.name==='MembershipChecked'){ evtHandle = parsed.args.resultHandle; clog.kv('event.handle', evtHandle); break; } }catch{} } if(!evtHandle){ try{ evtHandle = await contract.getLastResultHandle(); clog.kv('getLastResultHandle()', evtHandle); }catch{} } clog.end(); if(!evtHandle) throw new Error('No public handle returned by contract'); lastHandle = evtHandle; return evtHandle; }
+      // ===== Admin: Set encrypted rules =====
+      async function setRulesEncrypted(){
+        try{
+          if(!contract) await connect();
+          const minAge = Number(els.minAge.value || 0);
+          const maxClaims = Number(els.maxClaims.value || 0);
+          const minScore = Number(els.minScore.value || 0);
+          if(!isU8(minAge) || !isU8(maxClaims) || !isU16(minScore)) throw new Error('Out of range');
 
-      async function decryptPublic(handle){ clog.group('DECRYPT (public)'); const out = await relayer.publicDecrypt([handle]); const value = Array.isArray(out) ? out[0] : out[handle]; clog.table({ handle, decrypted: String(value) }); clog.end(); return (typeof value==='bigint') ? (value===1n) : (Number(value)===1); }
+          els.adminLog.textContent = 'Encrypting rules…';
+          FHELOG.encStart({ contract: CONTRACT_ADDRESS, kind: 'rules' });
+          const buf = relayer.createEncryptedInput(CONTRACT_ADDRESS, user);
+          buf.add8(minAge);   FHELOG.encAdd('add8(minAge)', minAge);
+          buf.add8(maxClaims);FHELOG.encAdd('add8(maxClaims)', maxClaims);
+          buf.add16(minScore);FHELOG.encAdd('add16(minScore)', minScore);
+          const { handles, inputProof } = await buf.encrypt();
+          FHELOG.encDone(handles, inputProof);
 
-      // ===== Connect =====
-      btnConnect.addEventListener('click', async ()=>{ try{ setLoading(btnConnect,true); if(!window.ethereum) throw new Error('MetaMask not found'); await ensureSepolia(); provider = new BrowserProvider(window.ethereum); await provider.send('eth_requestAccounts', []); signer = await provider.getSigner(); user = await signer.getAddress(); const net = await provider.getNetwork(); netInfo.textContent = `Sepolia (${net.chainId.toString()})`; acctInfo.textContent = `${user.slice(0,6)}…${user.slice(-4)}`; const code = await provider.getCode(KMS_ADDRESS); if(code==='0x') throw new Error('KMS contract not found'); await initSDK(); relayer = await createInstance({ ...SepoliaConfig, network: window.ethereum, relayerUrl: RELAYER_URL, debug:true }); contract = new Contract(CONTRACT_ADDRESS, abi, signer); setStatus('Connected. Ready to check.'); btnLast.disabled = false; refreshButtons(); clog.group('SETUP'); console.log('Ready'); clog.end(); }catch(e){ console.error(e); setStatus('❌ '+e.message); } finally{ setLoading(btnConnect,false); } });
+          // Soft dry-run (may fail on some RPCs; proceed anyway)
+          try { await contract.setRulesEncrypted.staticCall(handles[0], handles[1], handles[2], inputProof); FHELOG.staticOk(); }
+          catch(e){ DLOG.warn('staticCall(setRulesEncrypted) failed → sending tx', e?.shortMessage || e?.message || e); }
 
-      // ===== Actions =====
-      btnCheck.addEventListener('click', async ()=>{ try{ if(!signer || !relayer) throw new Error('Connect wallet first'); const address = validateAddress(addrInput.value); setLoading(btnCheck,true); setStatus('Encrypting & sending…'); resultEl.style.display='none'; const { handle, proof } = await encryptAddress(address); const publicHandle = await callCheckPublic(modeSel.value, handle, proof); const ok = await decryptPublic(publicHandle); showResult(ok); setStatus('✅ Done'); }catch(e){ console.error(e); setStatus('❌ '+e.message); } finally{ setLoading(btnCheck,false); } });
+          const tx = await contract.setRulesEncrypted(handles[0], handles[1], handles[2], inputProof);
+          els.adminLog.textContent = `TX: ${tx.hash}`;
+          await tx.wait();
+          els.adminLog.textContent = 'Encrypted rules set ✔';
+          await showRuleHandles();
+        } catch(e){ els.adminLog.textContent = `Error: ${e.message || e}`; DLOG.err(e); }
+      }
 
-      btnLast.addEventListener('click', async ()=>{ try{ if(!relayer) throw new Error('Relayer not ready'); if(!lastHandle) throw new Error('No handle cached yet'); setLoading(btnLast,true); setStatus('Decrypting last result…'); const ok = await decryptPublic(lastHandle); showResult(ok); setStatus('✅ Done'); }catch(e){ console.error(e); setStatus('❌ '+e.message); } finally{ setLoading(btnLast,false); } });
+      // ===== Admin: Set plain rules (dev) =====
+      async function setRulesPlain(){
+        try{
+          if(!contract) await connect();
+          const minAge = Number(els.minAge.value || 0);
+          const maxClaims = Number(els.maxClaims.value || 0);
+          const minScore = Number(els.minScore.value || 0);
+          if(!isU8(minAge) || !isU8(maxClaims) || !isU16(minScore)) throw new Error('Out of range');
 
-      btnAddW.addEventListener('click', async ()=>{ try{ if(!contract) throw new Error('Connect first'); const address = validateAddress(adminHandle.value); setLoading(btnAddW,true); const { handle, proof } = await encryptAddress(address); clog.group('ADMIN addToWhitelist'); clog.table({ handle, proofLen: proof.length }); const tx = await contract.addToWhitelist(handle, proof, { gasLimit: 3_000_000 }); console.log('txHash', tx.hash); await tx.wait(); clog.end(); setStatus('✅ Added to whitelist (encrypted)'); }catch(e){ console.error(e); setStatus('❌ '+e.message); } finally{ setLoading(btnAddW,false); } });
+          const tx = await contract.setRulesPlain(minAge, maxClaims, minScore);
+          els.adminLog.textContent = `TX: ${tx.hash}`;
+          await tx.wait();
+          els.adminLog.textContent = 'Plain rules set ✔';
+          await showRuleHandles();
+        } catch(e){ els.adminLog.textContent = `Error: ${e.message || e}`; DLOG.err(e); }
+      }
 
-      btnAddB.addEventListener('click', async ()=>{ try{ if(!contract) throw new Error('Connect first'); const address = validateAddress(adminHandle.value); setLoading(btnAddB,true); const { handle, proof } = await encryptAddress(address); clog.group('ADMIN addToBlacklist'); clog.table({ handle, proofLen: proof.length }); const tx = await contract.addToBlacklist(handle, proof, { gasLimit: 3_000_000 }); console.log('txHash', tx.hash); await tx.wait(); clog.end(); setStatus('✅ Added to blacklist (encrypted)'); }catch(e){ console.error(e); setStatus('❌ '+e.message); } finally{ setLoading(btnAddB,false); } });
+      // ===== Admin: Make rules public =====
+      async function makeRulesPublic(){
+        try{
+          if(!contract) await connect();
+          const tx = await contract.makeRulesPublic();
+          els.adminLog.textContent = `TX: ${tx.hash}`;
+          await tx.wait();
+          els.adminLog.textContent = 'Rules marked public ✔';
+        } catch(e){ els.adminLog.textContent = `Error: ${e.message || e}`; DLOG.err(e); }
+      }
 
-      refreshButtons();
-      if (window.ethereum?.on){ window.ethereum.on('chainChanged', ()=> window.location.reload()); window.ethereum.on('accountsChanged', ()=> window.location.reload()); }
+      // ===== Applicant: Apply =====
+      async function apply(){
+        try{
+          if(!contract) await connect();
+          const age = Number(els.age.value || 0);
+          const claims = Number(els.claims.value || 0);
+          const score = Number(els.score.value || 0);
+          if(!isU8(age) || !isU8(claims) || !isU16(score)) throw new Error('Inputs out of range');
+
+          els.applyLog.textContent = 'Encrypting…'; els.verdictBox.textContent = '—';
+          FHELOG.encStart({ contract: CONTRACT_ADDRESS, kind:'application' });
+          const buf = relayer.createEncryptedInput(CONTRACT_ADDRESS, user);
+          buf.add8(age);    FHELOG.encAdd('add8(age)', age);
+          buf.add8(claims); FHELOG.encAdd('add8(claims)', claims);
+          buf.add16(score); FHELOG.encAdd('add16(score)', score);
+          const { handles, inputProof } = await buf.encrypt();
+          FHELOG.encDone(handles, inputProof);
+
+          // Soft dry-run
+          try { await contract.checkEligibility.staticCall(handles[0], handles[1], handles[2], inputProof); FHELOG.staticOk(); }
+          catch(e){ DLOG.warn('staticCall(checkEligibility) failed → sending tx', e?.shortMessage || e?.message || e); }
+
+          const tx = await contract.checkEligibility(handles[0], handles[1], handles[2], inputProof);
+          els.applyTx.textContent = tx.hash;
+          const rcpt = await tx.wait();
+
+          // Parse ApplicationChecked(applicant, resultHandle)
+          const eventSig = new Contract(CONTRACT_ADDRESS, abi, signer).interface.getEvent("ApplicationChecked").topicHash;
+          const log = rcpt.logs.find(l => l.topics?.[0] === eventSig);
+          if(!log){ els.verdictBox.textContent = 'No result handle found'; return; }
+          const parsed = new Contract(CONTRACT_ADDRESS, abi, signer).interface.parseLog(log);
+          const resultHandle = parsed.args.resultHandle;
+
+          els.applyLog.textContent = 'Decrypting verdict…';
+
+          // EIP-712 userDecrypt
+          const kp = await generateKeypair();
+          const startTs = Math.floor(Date.now()/1000).toString();
+          const days = '7';
+          const eip = relayer.createEIP712(kp.publicKey, [CONTRACT_ADDRESS], startTs, days);
+          const sig = await signer.signTypedData( eip.domain, { UserDecryptRequestVerification: eip.types.UserDecryptRequestVerification }, eip.message );
+
+          const pairs = [ { handle: resultHandle, contractAddress: CONTRACT_ADDRESS } ];
+          const out = await relayer.userDecrypt( pairs, kp.privateKey, kp.publicKey, sig.replace('0x',''), [CONTRACT_ADDRESS], user, startTs, days );
+          let verdict = out[resultHandle];
+          if(verdict === undefined){ const k = Object.keys(out).find(k=>k.toLowerCase()===String(resultHandle).toLowerCase()); verdict = out[k]; }
+
+          const ok = verdict===true || verdict==='true' || verdict===1 || verdict==='1';
+          els.verdictBox.textContent = ok ? '✅ Eligible' : '❌ Not eligible';
+          els.applyLog.textContent = 'Done';
+        } catch(e){ els.applyLog.textContent = `Error: ${e.message || e}`; DLOG.err(e); }
+      }
     </script>
   </body>
 </html>
